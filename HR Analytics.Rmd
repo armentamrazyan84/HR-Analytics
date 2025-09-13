@@ -1,0 +1,223 @@
+---
+title: "hr_data Analytics"
+author: "Armen Tamrazyan"
+date: "2025-09-13"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+library(dplyr)
+library(readr)
+library(ggplot2)
+library(corrplot)
+library(reshape2)
+library(vcd)
+library(scales)
+```
+
+
+
+```{r cars}
+path <- "C:/Users/user/Downloads/HR_employee_Attrition.csv"
+hr_data <- read_csv(path)
+
+head(hr_data)
+```
+
+
+```{r pressure, echo=FALSE}
+
+hr_data_num <- hr_data %>% select(where(is.numeric))
+
+cor_matrix <- cor(hr_data_num, use = "pairwise.complete.obs")
+
+corrplot(cor_matrix,
+         method = "color",                      
+         type = "upper",                         
+         col = colorRampPalette(c("blue","white","red"))(200),
+         palette
+         tl.col = "black",                  
+         tl.cex = 0.7,                         
+         addCoef.col = NULL,                   
+         number.cex = 0.7,
+         cl.cex = 0.7)                          
+
+cor_long <- melt(cor_matrix)
+cor_strong <- subset(cor_long, abs(value) > 0.65 & Var1 != Var2)
+
+cor_strong <- cor_strong[as.numeric(cor_strong$Var1) < as.numeric(cor_strong$Var2), ]
+
+cor_strong <- cor_strong[order(-abs(cor_strong$value)), ]
+
+cor_strong
+
+```
+The analysis shows that job level is almost perfectly tied to monthly income, meaning higher positions directly translate into higher pay. Job level and total working years are also strongly connected, reflecting how experience influences seniority. Salary increases are closely linked with performance ratings, indicating that compensation is performance-driven. In addition, monthly income rises with greater work experience.
+
+Tenure-related measures are tightly correlated with each other: employees who spend more years at the company usually remain longer in the same role and with the same manager, pointing to limited internal movement. Finally, age is strongly associated with total working years, which is expected since older employees generally have more experience.
+
+
+```{r pressure, echo=FALSE}
+tab <- table(hr_data$Department, hr_data$Attrition)
+tab
+
+chisq.test(tab)
+
+library(vcd)
+assocstats(tab)
+
+
+```
+Attrition rates vary somewhat across departments: turnover is higher in Sales and Human Resources compared to Research & Development. However, the difference between departments is small, meaning that department type is not a major driver of attrition in this dataset.
+
+```{r pressure, echo=FALSE}
+
+chi_cramer <- function(var, outcome = hr_data$Attrition) {
+  tab <- table(var, outcome)
+  chi <- chisq.test(tab)
+  cram <- assocstats(tab)$cramer
+  data.frame(
+    Variable = deparse(substitute(var)),
+    ChiSq = chi$statistic,
+    df = chi$parameter,
+    p.value = chi$p.value,
+    CramersV = cram,
+    stringsAsFactors = FALSE
+  )
+}
+
+results <- rbind(
+  chi_cramer(hr_data$Department),
+  chi_cramer(hr_data$Gender),
+  chi_cramer(hr_data$MaritalStatus),
+  chi_cramer(hr_data$EducationField),
+  chi_cramer(hr_data$JobLevel),
+  chi_cramer(hr_data$BusinessTravel),
+  chi_cramer(hr_data$OverTime)
+)
+
+results <- results[order(-results$CramersV), ]
+results
+
+```
+The analysis shows that overtime and job level are the strongest factors linked to attrition. Employees who work overtime are much more likely to leave, and junior staff show higher turnover compared to senior staff.
+
+Marital status also matters, with single employees more likely to leave. Business travel and education field play a smaller role, but still influence attrition.
+
+By contrast, department has only a very small effect, and gender is not related to attrition at all.
+
+```{r pressure, echo=FALSE}
+aggregate(MonthlyIncome ~ OverTime, data = hr_data, mean)
+
+t.test(MonthlyIncome ~ OverTime, data = hr_data)
+
+
+
+```
+Employees who work overtime earn about the same as those who do not. In this dataset, overtime work is not linked to higher pay, even though it is strongly linked to higher attrition.
+
+```{r pressure, echo=FALSE}
+
+tab3 <- table(hr_data$Gender, hr_data$OverTime, hr_data$Attrition)
+tab3
+chisq.test(table(hr_data$OverTime[hr_data$Gender=="Male"], hr_data$Attrition[hr_data$Gender=="Male"]))
+chisq.test(table(hr_data$OverTime[hr_data$Gender=="Female"], hr_data$Attrition[hr_data$Gender=="Female"]))
+
+hr_data$Attrition <- factor(hr_data$Attrition, levels=c("No","Yes"))
+hr_data$OverTime <- factor(hr_data$OverTime)
+hr_data$Gender <- factor(hr_data$Gender)
+
+fit <- glm(Attrition ~ OverTime * Gender, data = hr_data, family = binomial)
+summary(fit)
+
+
+
+
+```
+Employees who work overtime are more likely to leave the company, and this trend is the same for both men and women. Gender does not play a role in how overtime affects attrition risk.
+
+```{r pressure, echo=FALSE}
+# Logistic regression with interaction
+fit_job <- glm(Attrition ~ OverTime * JobLevel, data = hr_data, family = binomial)
+summary(fit_job)
+
+# Attrition rates by JobLevel & OverTime
+library(dplyr)
+new_d_hr <- hr_data %>%
+  group_by(JobLevel, OverTime) %>%
+  summarise(
+    AttritionRate = mean(Attrition == "Yes"),
+    Count = n(),
+    .groups = "drop"
+  )
+
+
+
+
+```
+The analysis shows that job level changes the impact of overtime on attrition. Overtime is a much stronger risk factor for junior employees, while for senior staff the effect is weaker. This means lower-level employees are more likely to leave when asked to work overtime, but higher-level employees are less affected.
+
+
+```{r pressure, echo=FALSE}
+hr_data$Attrition <- factor(hr_data$Attrition, levels = c("No","Yes"))
+hr_data$OverTime  <- factor(hr_data$OverTime,  levels = c("No","Yes"))
+hr_data$JobLevel  <- factor(hr_data$JobLevel,  levels = sort(unique(hr_data$JobLevel)))
+
+heat_job <- hr_data %>%
+  group_by(JobLevel, OverTime) %>%
+  summarise(
+    n = n(),
+    attr_rate = mean(Attrition == "Yes"),
+    .groups = "drop"
+  )
+
+p_job <- ggplot(heat_job, aes(x = OverTime, y = JobLevel, fill = attr_rate)) +
+  geom_tile() +
+  scale_fill_gradient2(low = "steelblue", mid = "white", high = "firebrick",
+                       midpoint = 0.15, labels = percent, name = "Attrition %") +
+  labs(
+    title = "Attrition Rate by OverTime and Job Level",
+    x = "OverTime", y = "Job Level"
+  ) +
+  theme_minimal(base_size = 12) +
+  theme(panel.grid = element_blank())
+
+p_job
+```
+
+
+```{r pressure, echo=FALSE}
+hr_data$TenureGroup <- cut(
+  hr_data$YearsAtCompany,
+  breaks = c(-Inf, 3, 7, 15, Inf),
+  labels = c("0–3 yrs", "4–7 yrs", "8–15 yrs", "16+ yrs"),
+  right = TRUE
+)
+hr_data$TenureGroup <- factor(hr_data$TenureGroup, levels = c("0–3 yrs","4–7 yrs","8–15 yrs","16+ yrs"))
+hr_data$OverTime    <- factor(hr_data$OverTime, levels = c("No","Yes"))
+hr_data$Attrition   <- factor(hr_data$Attrition, levels = c("No","Yes"))
+
+heat_tenure <- hr_data %>%
+  group_by(TenureGroup, OverTime) %>%
+  summarise(
+    n = n(),
+    attr_rate = mean(Attrition == "Yes"),
+    .groups = "drop"
+  )
+
+p_ten <- ggplot(heat_tenure, aes(x = OverTime, y = TenureGroup, fill = attr_rate)) +
+  geom_tile() +
+  scale_fill_gradient2(low = "steelblue", mid = "white", high = "firebrick",
+                       midpoint = 0.15, labels = percent, name = "Attrition %") +
+  labs(
+    title = "Attrition Rate by OverTime and Tenure Group",
+    x = "OverTime", y = "Tenure Group"
+  ) +
+  theme_minimal(base_size = 12) +
+  theme(panel.grid = element_blank())
+
+p_ten
+
+```
+
+Employees’ likelihood of working overtime also depends on how long they’ve been with the company. Early-career staff (0–3 years) are more often assigned or required to work overtime, while attrition risk is already highest for this group. At higher tenure levels, overtime is less common and has a weaker effect on attrition.
