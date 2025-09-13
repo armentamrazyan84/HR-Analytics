@@ -24,20 +24,29 @@ Analyses Performed
 Descriptive Statistics
 - Overall attrition rate
 - Attrition by department, job level, overtime, gender, marital status, tenure
+
 Hypothesis Testing
 - Chi-square tests for association between attrition and categorical variables (Department, OverTime, JobLevel, etc.)
 - Independent-samples t-test for salary differences by overtime status
+
+
 Correlation Analysis
 - Explored relationships between numeric variables (e.g., JobLevel ↔ MonthlyIncome, Age ↔ TotalWorkingYears)
+
+
 Interaction Effects
 - Logistic regression to test whether the effect of overtime on attrition depends on:
    Gender → No significant moderation
    Job Level → Significant moderation (overtime affects junior staff more)
    YearsAtCompany (Tenure) → Overtime is most risky in early career
 
+
+
 Visualizations (R)
 Heatmaps: Attrition risk by OverTime × JobLevel, and OverTime × Tenure Group
 Bar and line charts for attrition trends
+
+
 
 Power BI KPIs
 Overall Attrition Rate
@@ -46,6 +55,8 @@ Attrition Rate by Job Level
 Average Monthly Income (with overtime vs non-overtime comparison)
 Tenure-Based Attrition (≤ 3 years)
 
+
+
 Key Insights
 Overtime is the strongest predictor of attrition: employees working overtime are far more likely to leave.
 Job level matters: junior employees are especially vulnerable when required to work overtime.
@@ -53,6 +64,8 @@ Early tenure (≤3 years) is a high-risk period, especially when combined with o
 Marital status: single employees are more likely to leave.
 Department and gender have little effect on attrition.
 Compensation is tied to job level and experience, but not to overtime. Employees who work overtime earn the same as those who don’t, which may explain why overtime drives attrition.
+
+
 
 How to Use
 R Scripts: Run the provided R code to reproduce statistical tests and heatmaps.
